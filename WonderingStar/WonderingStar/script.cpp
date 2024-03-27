@@ -12,6 +12,7 @@
 #include <iostream>		//Header that defines the standard input/output stream objects:
 #include <string>
 #include <vector>
+#include <cmath>
 
 //#pragma warning(disable : 4244 4305) // double <-> float conversions
 
@@ -263,6 +264,11 @@ int BottomLeft(const std::string& sText)
 	return UI::_DRAW_NOTIFICATION(1, 1);
 }
 
+bool InDirectionOf(float angle1, float angle2, float amount)
+{
+	float Indiffrence = std::abs(angle1 - angle2);
+	return Indiffrence <= amount;
+}
 float DistanceTo(Vector3 postion1, Vector3 postion2)
 {
 	double num = postion2.x - postion1.x;
@@ -308,10 +314,10 @@ bool InAveh = false;
 
 int YourViews = 0;
 
-Ped FindThatPed(Vector3 area)
+Ped FindThatPed(Vector3 area, float Heading)
 {
 	Ped Bob = NULL;
-
+	 
 	const int PED_ARR_SIZE = 1024;
 	Ped Pedds[PED_ARR_SIZE];
 	int Pedcount = worldGetAllPeds(Pedds, PED_ARR_SIZE);
@@ -322,7 +328,7 @@ Ped FindThatPed(Vector3 area)
 		Ped Pent = Pedds[i];
 		if (Pent != NULL && ENTITY::DOES_ENTITY_EXIST(Pent))
 		{
-			if (!ENTITY::IS_ENTITY_A_MISSION_ENTITY(Pent) && DistanceTo(ENTITY::GET_ENTITY_COORDS(Pent, false), area) > 45.0f && PED::GET_PED_TYPE(Pent) != 2 && !(bool)PED::IS_PED_IN_ANY_VEHICLE(Pent, 0) && !(bool)PED::IS_PED_FLEEING(Pent) && (bool)AI::IS_PED_WALKING(Pent))	//&& DistanceTo(ENTITY::GET_ENTITY_COORDS(Pent, false), area) < 95.0f
+			if (!ENTITY::IS_ENTITY_A_MISSION_ENTITY(Pent) && InDirectionOf(ENTITY::GET_ENTITY_HEADING(Pent), Heading, 45.0f) && DistanceTo(ENTITY::GET_ENTITY_COORDS(Pent, false), area) > 15.0f && DistanceTo(ENTITY::GET_ENTITY_COORDS(Pent, false), area) < 125.0f && PED::GET_PED_TYPE(Pent) != 2 && !(bool)PED::IS_PED_IN_ANY_VEHICLE(Pent, 0) && !(bool)PED::IS_PED_FLEEING(Pent) && (bool)AI::IS_PED_WALKING(Pent))	//&& DistanceTo(ENTITY::GET_ENTITY_COORDS(Pent, false), area) < 95.0f
 			{
 				Bob = Pedds[i];
 				break;
@@ -332,7 +338,7 @@ Ped FindThatPed(Vector3 area)
 		
 	return Bob;
 }
-Vehicle FindThatVeh(Vector3 area)
+Vehicle FindThatVeh(Vector3 area, float Heading)
 {
 	Vehicle Vick = NULL;
 	const int PED_ARR_SIZE = 1024;
@@ -345,7 +351,7 @@ Vehicle FindThatVeh(Vector3 area)
 		Vick = Vehcs[i];
 		if (Vick != NULL && ENTITY::DOES_ENTITY_EXIST(Vick))
 		{
-			if (!ENTITY::IS_ENTITY_A_MISSION_ENTITY(Vick) && DistanceTo(ENTITY::GET_ENTITY_COORDS(Vick, false), area) > 45.0f && VEHICLE::_IS_VEHICLE_ENGINE_ON(Vick)) //&& DistanceTo(ENTITY::GET_ENTITY_COORDS(Vick, false), area) < 255.0f
+			if (!ENTITY::IS_ENTITY_A_MISSION_ENTITY(Vick) && InDirectionOf(ENTITY::GET_ENTITY_HEADING(Vick), Heading, 20.0f) && DistanceTo(ENTITY::GET_ENTITY_COORDS(Vick, false), area) > 25.0f && DistanceTo(ENTITY::GET_ENTITY_COORDS(Vick, false), area) < 150.0f && VEHICLE::_IS_VEHICLE_ENGINE_ON(Vick)) //&& DistanceTo(ENTITY::GET_ENTITY_COORDS(Vick, false), area) < 255.0f
 				break;
 		}
 	}
@@ -355,6 +361,7 @@ Vehicle FindThatVeh(Vector3 area)
 
 Vehicle followVeh = NULL;
 Ped followMe = NULL;
+Vector3 LastPos = Vector3();
 int timeTwo = 0;
 float distanceToo = 5000.0f;
 
@@ -367,11 +374,15 @@ void WonderYeOnda(bool InVeh)
 		{
 			Go_Wonder = true;
 			Vector3 PlayPos = ENTITY::GET_ENTITY_COORDS(player, false);
-			followVeh = FindThatVeh(PlayPos);
+			float PlayHead = ENTITY::GET_ENTITY_HEADING(player);
+
+			if (DistanceTo(PlayPos, LastPos) > 90.0f)
+				LastPos = PlayPos;
+			followVeh = FindThatVeh(LastPos, PlayHead);
 			if (followVeh != NULL)
 			{
 				Vehicle PlayVeh = PED::GET_VEHICLE_PED_IS_IN(PLAYER::PLAYER_PED_ID(), false);
-
+				LastPos = ENTITY::GET_ENTITY_COORDS(PlayVeh, false);
 				if (VEHICLE::IS_THIS_MODEL_A_HELI(PlayVeh))
 					FlyHeli(PLAYER::PLAYER_PED_ID(), PlayVeh, followVeh, 45.0f, 10.0f);
 				else
@@ -389,7 +400,7 @@ void WonderYeOnda(bool InVeh)
 					followVeh = NULL;
 				else
 				{
-					if (DistanceTo(player, followVeh) < 15.0f)
+					if (DistanceTo(player, followVeh) < 10.0f)
 						followVeh = NULL;
 				}
 			}
@@ -401,12 +412,18 @@ void WonderYeOnda(bool InVeh)
 		{
 			Go_Wonder = true;
 			Vector3 PlayPos = ENTITY::GET_ENTITY_COORDS(player, false);
-			followMe = FindThatPed(PlayPos);
-			timeTwo = (int)GAMEPLAY::GET_GAME_TIMER() + 10000;
+			float PlayHead = ENTITY::GET_ENTITY_HEADING(player);
+
+			if (DistanceTo(PlayPos, LastPos) > 90.0f)
+				LastPos = PlayPos;
+			followMe = FindThatPed(LastPos, PlayHead);
 			if (followMe != NULL)
 			{
+				LastPos = ENTITY::GET_ENTITY_COORDS(followMe, false);
 				AI::TASK_FOLLOW_TO_OFFSET_OF_ENTITY(PLAYER::PLAYER_PED_ID(), followMe, 0.0f, 0.0f, 0.0f, 1.0f, -1, 3.0f, true);
 				distanceToo = DistanceTo(player, followMe);
+
+				timeTwo = (int)GAMEPLAY::GET_GAME_TIMER() + 10000;
 			}
 		}
 		else if (timeTwo < (int)GAMEPLAY::GET_GAME_TIMER())
@@ -440,6 +457,8 @@ void StopHere()
 		AI::CLEAR_PED_TASKS_IMMEDIATELY(PLAYER::PLAYER_PED_ID());
 		if (InAveh && PLAYER::GET_PLAYERS_LAST_VEHICLE() != NULL)
 			PED::SET_PED_INTO_VEHICLE(PLAYER::PLAYER_PED_ID(), PLAYER::GET_PLAYERS_LAST_VEHICLE(), -1);
+
+		AI::TASK_SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(PLAYER::PLAYER_PED_ID(), false);
 	}
 	
 	CAM::SET_FOLLOW_PED_CAM_VIEW_MODE(YourViews);
@@ -452,6 +471,10 @@ Vector3 PlayPos;
 bool InPressed()
 {
 	bool bDone = false;
+	if (invoke<BOOL>(0xD7D22F5592AED8BA, 0) < Wait_Time)
+		bDone = true;
+
+	/*
 	for (int i = 0; i < 343; i++)
 	{
 		if (CONTROLS::IS_CONTROL_PRESSED(i, 1))
@@ -460,27 +483,30 @@ bool InPressed()
 			break;
 		}
 	}
+	*/
 	return bDone;
 }
 bool MotionTracking()
 {
 	bool b = false;
 
-	if (!CUTSCENE::IS_CUTSCENE_PLAYING())
+	if (!CUTSCENE::IS_CUTSCENE_PLAYING() && !AI::IS_PED_ACTIVE_IN_SCENARIO(PLAYER::PLAYER_PED_ID()) && !AI::GET_IS_TASK_ACTIVE(PLAYER::PLAYER_PED_ID(), 134) && !PED::IS_PED_IN_COVER(PLAYER::PLAYER_PED_ID(), 0))
 	{
 		if (countDown == 0)
 		{
-			PlayPos = ENTITY::GET_ENTITY_COORDS(PLAYER::PLAYER_PED_ID(), false);
+			//PlayPos = ENTITY::GET_ENTITY_COORDS(PLAYER::PLAYER_PED_ID(), false);
 			countDown = (int)GAMEPLAY::GET_GAME_TIMER() + Wait_Time;
 		}
 		else if (countDown < (int)GAMEPLAY::GET_GAME_TIMER())
 		{
-			if (DistanceTo(PlayPos, ENTITY::GET_ENTITY_COORDS(PLAYER::PLAYER_PED_ID(), false)) < 1.0f)
+			if (invoke<BOOL>(0xD7D22F5592AED8BA, 0) > Wait_Time)//(DistanceTo(PlayPos, ENTITY::GET_ENTITY_COORDS(PLAYER::PLAYER_PED_ID(), false)) < 1.0f)
 				b = true;
 			else
 				countDown = 0;
 		}
 	}
+	else
+		countDown = 0;
 
 	return b;
 }
@@ -498,26 +524,31 @@ bool PlayerDriver()
 	return b;
 }
 bool IsOn = false;
-float Rotate_Cam()
+void Rotate_Cam(float* r_Cam, float min, float max)
 {	
 	static bool moment = false;
-	static float r_Cam = 180.0f;
+
 	if (moment)
 	{
-		if (r_Cam < 160.0f)
+		if (*r_Cam < min)
+		{
+			*r_Cam = min;
 			moment = false;
+		}
 		else
-			r_Cam -= 0.1f;
+			*r_Cam -= 0.1f;
 	}
 	else
 	{
-		if (r_Cam > 200.0f)
+		if (*r_Cam > max)
+		{
+			*r_Cam = max;
 			moment = true;
+		}
 		else
-			r_Cam += 0.1f;
+			*r_Cam += 0.1f;
 	}
-	return r_Cam;
-} 
+}
 void Launch_Adventure(bool isVeh)
 {
 	IsOn = true;
@@ -527,19 +558,24 @@ void Launch_Adventure(bool isVeh)
 	else
 		AI::TASK_WANDER_STANDARD(PLAYER::PLAYER_PED_ID(), 10.0f, 10);
 	Last_Press = 0;
+	AI::TASK_SET_BLOCKING_OF_NON_TEMPORARY_EVENTS(PLAYER::PLAYER_PED_ID(), true);
 	YourViews = CAM::GET_FOLLOW_PED_CAM_VIEW_MODE();
 	CAM::SET_FOLLOW_PED_CAM_VIEW_MODE((Any)2);
 }
 void main()
 {	
+	static float XyAx = 180.0f;
+
 	while (true)
 	{
 		if (!Mod_loaded)
 		{
 			if (!(bool)DLC2::GET_IS_LOADING_SCREEN_ACTIVE())
+			{
 				Mod_loaded = true;
-			BottomLeft("~b~Adventure with Dementia ~w~by ~r~Adopcalipt");
-			FindSettings();
+				BottomLeft("~b~Adventure with Dementia ~w~by ~r~Adopcalipt");
+				FindSettings();
+			}
 		}
 		else
 		{
@@ -550,7 +586,7 @@ void main()
 			{
 				if (IsOn)
 				{
-					if (InPressed())
+					if (InPressed() || (bool)ENTITY::IS_ENTITY_DEAD(PLAYER::PLAYER_PED_ID()) || PLAYER::IS_PLAYER_BEING_ARRESTED(PLAYER::PLAYER_ID(), true))
 					{
 						if (Go_Wonder)
 							StopHere();
@@ -558,8 +594,8 @@ void main()
 					}
 					else
 						WonderYeOnda(InAveh);
-					CAM::SET_GAMEPLAY_CAM_RELATIVE_HEADING(Rotate_Cam());
-
+					Rotate_Cam(&XyAx, 160.0f, 200.0f);
+					CAM::SET_GAMEPLAY_CAM_RELATIVE_HEADING(XyAx);
 				}
 				else
 				{
